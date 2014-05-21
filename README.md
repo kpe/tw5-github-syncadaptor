@@ -1,4 +1,3 @@
-tw5-github-syncadaptor
-======================
+# tw5-github-syncadaptor
 
 GitHub SyncAdaptor for TiddlyWiki 5

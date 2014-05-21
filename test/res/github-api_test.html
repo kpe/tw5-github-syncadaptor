@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+    <script src="../node_modules/github-api/github.js"></script>
+    <style>
+        form label,input,div {
+            display: block;
+            float: left;
+            clear:both;
+        }
+    </style>
+</head>
+<body>
+
+<form id="github-auth" action="#">
+    <label for="github-repo">Repo path:</label>
+    <input id="github-repo" type="text" name="repo" size="40" placeholder="user/repo name of your tiddlywiki repository"
+            pattern="\w+\/\w+" required autofocus>
+    <label for="github-access_token">GitHub Access Token:</label>
+    <input id="github-access_token" type="text" size="40" name="access_token" placeholder="paste a github access token here"
+           autofocus required pattern="[a-z0-9]{40,40}"
+           title="GitHub Access Token (generate it in your github account settings)">
+    <input type="submit">
+
+    <div>
+        Check with <a href="https://help.github.com/articles/creating-an-access-token-for-command-line-use">Creating a token</a>
+        at GitHub for how to create the required OAuth access token.
+    </div>
+</form>
+
+<script>
+    function initForm(form){
+        var inputs = form && form.querySelectorAll('input[type=text]');
+        inputs && [].forEach.call(inputs, function(input){
+            input.value = localStorage[form.id+':'+input.name];
+        });
+    }
+    function saveForm(form){
+        var inputs = form && form.querySelectorAll('input[type=text]');
+        inputs && [].forEach.call(inputs, function(input){
+            localStorage[form.id+':'+input.name] = input.value;
+        });
+    }
+
+    var form = document.querySelector('form#github-auth');
+    initForm(form);
+    form.addEventListener('submit', function(e){
+        e.preventDefault();
+        doGitHubAuth();
+        return false;
+    });
+    function doGitHubAuth(){
+        var match = /(\w+)\/(\w+)/.exec(form['repo'].value);
+        if(!match) throw new Error('not a valid user/repo input:['+form['repo'].value+']');
+        var user = match[1];
+        var repo = match[2];
+        saveForm(form);
+
+        var branch = 'master';
+
+        console.log('accessing github repo: ',user+'/'+repo);
+        var github = new Github({auth:'oauth', token:form['access_token'].value});
+        var repo = github.getRepo(user,repo);
+        repo.contents(branch,'/',function(err, files){
+            files.forEach(function(file){
+                if(file.type == 'file') {
+                    console.log(file.name, file.size);
+                } else {
+                    console.log(file.name+'/');
+                }
+            });
+        });
+        repo.read(branch, 'test/test', function(err,data){
+            if(err) {console.error('failed to read test/test');}
+            console.log('done reading test/test', data);
+        });
+    }
+</script>
+
+</body>
+</html>

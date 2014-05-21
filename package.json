@@ -1,0 +1,25 @@
+{
+  "name": "tw5-github-syncadaptor",
+  "version": "0.1.0",
+  "description": "GitHub SyncAdaptor for TiddlyWiki 5",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/kpe/tw5-github-syncadaptor.git"
+  },
+  "keywords": [
+    "tw5",
+    "tiddlywiki",
+    "syncadaptor",
+    "github",
+    "wiki"
+  ],
+  "author": "kpe",
+  "license": "BSD-2-Clause",
+  "bugs": {
+    "url": "https://github.com/kpe/tw5-github-syncadaptor/issues"
+  }
+}
