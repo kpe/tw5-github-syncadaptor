@@ -21,5 +21,8 @@
   "license": "BSD-2-Clause",
   "bugs": {
     "url": "https://github.com/kpe/tw5-github-syncadaptor/issues"
+  },
+  "devDependencies": {
+    "tiddlywiki": "~5.0.12-beta"
   }
 }
