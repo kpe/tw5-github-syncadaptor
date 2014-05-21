@@ -24,5 +24,8 @@
   },
   "devDependencies": {
     "tiddlywiki": "~5.0.12-beta"
+  },
+  "dependencies": {
+    "github-api": "~0.7.0"
   }
 }

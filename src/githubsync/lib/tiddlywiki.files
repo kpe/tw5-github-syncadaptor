@@ -1,0 +1,19 @@
+{
+	"tiddlers": [
+		{
+			"file": "github.js",
+			"fields": {
+				"type": "application/javascript",
+				"title": "$:/plugins/kpe/githubsync/lib/github.js",
+				"module-type": "library"
+			}
+		},{
+		  "file": "underscore.js",
+    	"fields": {
+    		"type": "application/javascript",
+    		"title": "$:/plugins/kpe/githubsync/lib/underscore.js",
+    		"module-type": "library"
+		  }
+		}
+	]
+}

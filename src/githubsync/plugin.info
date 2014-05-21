@@ -1,0 +1,6 @@
+{
+	"title": "$:/plugins/kpe/githubsync",
+	"description": "GitHub synchronisation",
+	"author": "kpe",
+	"core-version": ">=5.0.0"
+}

@@ -1,10 +1,9 @@
 {
     "plugins": [
-        "tiddlywiki/tiddlyweb",
         "tiddlywiki/filesystem",
-        "tiddlywiki/fullscreen",
         "tiddlywiki/codemirror",
-        "tiddlywiki/highlight"
+        "tiddlywiki/highlight",
+        "kpe/githubsync"
     ],
     "themes": [
         "tiddlywiki/vanilla",
