@@ -16,12 +16,18 @@
             request = new XMLHttpRequest(),
             data = "",
             results;
+
+//console.log('>>_request',options);
+
         if(options.data) {
             if(typeof options.data == 'string') {
                 data = options.data;
             } else {
                 data = JSON.stringify(options.data);
             }
+        }
+        if(!options.raw) {
+            request.responseType = 'json';
         }
 /*
         // Massage the data hashmap into a string
@@ -42,7 +48,7 @@
             if(this.readyState === 4) {
                 if(this.status === 200 || this.status === 204) {
                     // Success!
-                    options.callback(null,this.responseText,this);
+                    options.callback(null,options.raw ? this.responseText:this.response, this);
                     return;
                 }
                 // Something went wrong
@@ -83,7 +89,11 @@
     function extend(base, sup) {
         for(var prop in sup) {
             if(sup.hasOwnProperty(prop)) {
-                if(typeof sup[prop] != 'object') {
+                if(sup[prop] === null) {
+                    if(typeof base[prop] != 'undefined') {
+                        delete base[prop];
+                    }
+                } else if(typeof sup[prop] != 'object') {
                     base[prop] = sup[prop];
                 } else {
                     if(typeof base[prop] == 'undefined') {
@@ -97,7 +107,7 @@
     }
     function getGitHubURL(path) {
         var url = path.indexOf('//') >= 0 ? path : API_URL + path;
-        return url + ((/\?/).test(url) ? "&" : "?") + (new Date()).getTime();
+        return url + (/\?/.test(url) ? "&" : "?") + (new Date()).getTime();
     }
 
     /**
@@ -109,13 +119,14 @@
     }
 
 
-    Github.prototype._request = function(method,url,opts,cb) {
+    Github.prototype._request = function(method,url,data,cb,opts) {
         var ropts = extend(extend({
             type: method,
             url: getGitHubURL(url)
         }, {
             headers: this.authHeaders,
-            callback: cb
+            callback: cb,
+            data: data
         }), opts);
         if(typeof $tw != 'undefined') {
             return $tw.utils.httpRequest(ropts);
@@ -123,8 +134,8 @@
             _tw_request(ropts);
         }
     };
-    Github.prototype.getRepo = function(opts){
-        return new Repo(opts,this);
+    Github.prototype.getRepo = function(user,repo){
+        return new Repo({user:user, name:repo},this);
     };
 
     /**
@@ -134,8 +145,8 @@
      */
     function Repo(opts,github) {
         this._github = github;
-        this.repo = opts.name;
         this.user = opts.user;
+        this.repo = opts.name;
         this.repoPath = "/repos/" + this.user + "/" + this.repo;
 
         this.currentTree = {
@@ -265,9 +276,10 @@
     Repo.prototype.show = function(cb) {
         this._request('GET', '', {}, cb);
     };
-    Repo.prototype.contents = function(ref, path, cb) {
-        return this._request("GET", this.repoPath + "/contents?ref=" + this.branch + (path ? "&path=" + path : ""), null,cb, {raw: true}); // FIXME: implement raw
+    Repo.prototype.contents = function(branch, path, cb) {
+        return this._request("GET", "/contents?ref=" + branch + (path ? "&path=" + path : ""), null, cb);
     };
+
     Repo.prototype.read = function(branch, path, cb) {
         var self = this;
         self.getSha(branch, path, function(err, sha) {
@@ -277,6 +289,7 @@
             });
         });
     };
+
     Repo.prototype.write = function(branch, path, content, message, cb) {
         var that = this;
         this.updateTree(branch, function(err, latestCommit) {

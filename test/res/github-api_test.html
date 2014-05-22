@@ -58,9 +58,6 @@
         var repo = github.getRepo(user,repo);
         repo.contents(branch,'/',function(err, files){
             if(err) throw new Error(err);
-            if(typeof files == 'string') {
-                files = JSON.parse(files);
-            }
             files.forEach(function(file){
                 if(file.type == 'file') {
                     console.log(file.name, file.size);
@@ -69,22 +66,28 @@
                 }
             });
         });
+        repo.listBranches(function(err,data){
+            console.log('branches',err,data);
+        });
+
         repo.read(branch, 'test/test', function(err,data){
             if(err) {console.error('failed to read test/test');return;}
-            console.log('done reading test/test', data);
+            var content = data.content;
+            if(data.encoding == 'base64') {
+                content = Base64.decode(data.content);
+            }
+            console.log('done reading '+data.size+' byptes of test/test', content);
             var newCont = 'a random:'+Math.floor(Math.random()*1000)+' at '+new Date().toString();
-            repo.write(branch, 'test/test', data+'\n'+newCont, 'a github-api_test.html run',function(er){
+            repo.write(branch, 'test/test', content+'\n'+newCont, 'a github-api_test.html run',function(er){
                 if(er) {console.error('failed to write test/test',er);return;}
                 console.log('done writing test/test');
             });
         });
-
-        repo.listBranches(function(err,data){
-            console.log('branches',err,data);
-        });
+/*
         github.getUser().userRepos('kpe',function(err,data){
             console.log('user repos',err,data);
         })
+*/
     }
 
     var form = document.querySelector('form#github-auth');
