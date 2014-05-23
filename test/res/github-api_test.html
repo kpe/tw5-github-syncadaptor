@@ -56,6 +56,7 @@
         console.log('accessing github repo: ',user+'/'+repo);
         var github = new Github({auth:'oauth', token:form['access_token'].value});
         var repo = github.getRepo(user,repo);
+/*
         repo.contents(branch,'/',function(err, files){
             if(err) throw new Error(err);
             files.forEach(function(file){
@@ -69,16 +70,12 @@
         repo.listBranches(function(err,data){
             console.log('branches',err,data);
         });
-
+*/
         repo.read(branch, 'test/test', function(err,data){
-            if(err) {console.error('failed to read test/test');return;}
-            var content = data.content;
-            if(data.encoding == 'base64') {
-                content = Base64.decode(data.content);
-            }
-            console.log('done reading '+data.size+' byptes of test/test', content);
+            if(err) {console.error('failed to read test/test:',err);return;}
+            console.log('done reading test/test', data);
             var newCont = 'a random:'+Math.floor(Math.random()*1000)+' at '+new Date().toString();
-            repo.write(branch, 'test/test', content+'\n'+newCont, 'a github-api_test.html run',function(er){
+            repo.write(branch, 'test/test', data+'\n'+newCont, 'a github-api_test.html run',function(er){
                 if(er) {console.error('failed to write test/test',er);return;}
                 console.log('done writing test/test');
             });
