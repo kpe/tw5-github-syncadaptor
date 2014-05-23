@@ -92,7 +92,7 @@
             data = "",
             results;
 
-console.log('>>_tw_request:',options);
+//console.log('>>_tw_request:',options);
 
         if(options.data) {
             if(typeof options.data == 'string') {
@@ -161,15 +161,17 @@ console.log('>>_tw_request:',options);
                     if(typeof base[prop] != 'undefined') {
                         delete base[prop];
                     }
-                } else if () {
-
                 } else if(typeof sup[prop] != 'object') {
                     base[prop] = sup[prop];
                 } else {
-                    if(typeof base[prop] == 'undefined') {
-                        base[prop] = {};
+                    if(Object.prototype.toString.call(sup[prop]) === '[object Array]') {
+                        base[prop] = sup[prop];
+                    } else {
+                        if (typeof base[prop] == 'undefined') {
+                            base[prop] = {};
+                        }
+                        extend(base[prop], sup[prop]);
                     }
-                    extend(base[prop], sup[prop]);
                 }
             }
         }
@@ -190,7 +192,7 @@ console.log('>>_tw_request:',options);
 
 
     Github.prototype._request = function(method,url,data,cb,opts) {
-        console.log('>>_request:',method,url,data,opts,this.authHeaders,this);
+//        console.log('>>_request:',method,url,data,opts,this.authHeaders,this);
         var ropts = extend(extend({
             type: method,
             url: getGitHubURL(url)
@@ -328,9 +330,9 @@ console.log('>>_tw_request:',options);
             ],
             "tree": tree
         };
-
+        var self = this;
         this._request("POST", "/git/commits", data, function(err, res) {
-            this.currentTree.sha = res.sha; // update latest commit
+            self.currentTree.sha = res.sha; // update latest commit
             if (err) return cb(err);
             cb(null, res.sha);
         });
