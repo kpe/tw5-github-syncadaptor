@@ -1,523 +1,445 @@
-// Github.js 0.8.0
-// (c) 2013 Michael Aufreiter, Development Seed
-// Github.js is freely distributable under the MIT license.
-// For all details and documentation:
-// http://substance.io/michael/github
+/**
+ * File: github.js
+ * Created by kpe on 22-May-2014 at 2:26 PM.
+ */
 
-(function() {
+(function(){
+    /*jslint node:false, browser:true */
+    /*global $tw: false*/
+    'use strict';
 
-  // Initial Setup
-  // -------------
+    var API_URL = 'https://api.github.com';
 
-  var XMLHttpRequest, Base64, _;
-	XMLHttpRequest = window.XMLHttpRequest;
-	_ = window._ || require('./underscore.js');
-	Base64 = window.Base64;
+    var Base64 = {
+        keyStr: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",
+        /**
+         * Encodes a string in base64
+         * @param {String} input The string to encode in base64.
+         */
+        encode: function (input) {
+            var output = "";
+            var chr1, chr2, chr3;
+            var enc1, enc2, enc3, enc4;
+            var i = 0;
 
-  //prefer native XMLHttpRequest always
-  if (typeof window !== 'undefined' && typeof window.XMLHttpRequest !== 'undefined'){
-      XMLHttpRequest = window.XMLHttpRequest;
-  }
+            do {
+                chr1 = input.charCodeAt(i++);
+                chr2 = input.charCodeAt(i++);
+                chr3 = input.charCodeAt(i++);
 
-  
-  var API_URL = 'https://api.github.com';
+                enc1 = chr1 >> 2;
+                enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+                enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+                enc4 = chr3 & 63;
 
-  var Github = function(options) {
+                if (isNaN(chr2)) {
+                    enc3 = enc4 = 64;
+                } else if (isNaN(chr3)) {
+                    enc4 = 64;
+                }
 
-    // HTTP Request Abstraction
-    // =======
-    // 
-    // I'm not proud of this and neither should you be if you were responsible for the XMLHttpRequest spec.
+                output = output +
+                    Base64.keyStr.charAt(enc1) +
+                    Base64.keyStr.charAt(enc2) +
+                    Base64.keyStr.charAt(enc3) +
+                    Base64.keyStr.charAt(enc4);
+            } while (i < input.length);
 
-    function _request(method, path, data, cb, raw) {
-      function getURL() {
-        var url = API_URL + path;
-        return url + ((/\?/).test(url) ? "&" : "?") + (new Date()).getTime();
-      }
+            return output;
+        },
 
-      var xhr = new XMLHttpRequest();
-      if (!raw) {xhr.dataType = "json";}
+        /**
+         * Decodes a base64 string.
+         * @param {String} input The string to decode.
+         */
+        decode: function (input) {
+            var output = "";
+            var chr1, chr2, chr3;
+            var enc1, enc2, enc3, enc4;
+            var i = 0;
 
-      xhr.open(method, getURL());
-      xhr.onreadystatechange = function () {
-        if (this.readyState == 4) {
-          if (this.status >= 200 && this.status < 300 || this.status === 304) {
-            cb(null, raw ? this.responseText : this.responseText ? JSON.parse(this.responseText) : true);
-          } else {
-            cb({request: this, error: this.status});
-          }
+            // remove all characters that are not A-Z, a-z, 0-9, +, /, or =
+            input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+
+            do {
+                enc1 = Base64.keyStr.indexOf(input.charAt(i++));
+                enc2 = Base64.keyStr.indexOf(input.charAt(i++));
+                enc3 = Base64.keyStr.indexOf(input.charAt(i++));
+                enc4 = Base64.keyStr.indexOf(input.charAt(i++));
+
+                chr1 = (enc1 << 2) | (enc2 >> 4);
+                chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+                chr3 = ((enc3 & 3) << 6) | enc4;
+
+                output = output + String.fromCharCode(chr1);
+
+                if (enc3 != 64) {
+                    output = output + String.fromCharCode(chr2);
+                }
+                if (enc4 != 64) {
+                    output = output + String.fromCharCode(chr3);
+                }
+            } while (i < input.length);
+
+            return output;
         }
-      };
-      xhr.setRequestHeader('Accept','application/vnd.github.raw');
-      xhr.setRequestHeader('Content-Type','application/json');
-      if (
-         (options.auth == 'oauth' && options.token) ||
-         (options.auth == 'basic' && options.username && options.password)
-         ) {
-           xhr.setRequestHeader('Authorization',options.auth == 'oauth'
-             ? 'token '+ options.token
-             : 'Basic ' + Base64.encode(options.username + ':' + options.password)
-           );
-         }
-      data ? xhr.send(JSON.stringify(data)) : xhr.send();
-    }
+    };
 
+    var _tw_request = function(options) {
+        var type = options.type || "GET",
+            headers = options.headers || {accept: "application/json"},
+            request = new XMLHttpRequest(),
+            data = "",
+            results;
 
+//console.log('>>_tw_request:',options);
 
-    // User API
-    // =======
+        if(options.data) {
+            if(typeof options.data == 'string') {
+                data = options.data;
+            } else {
+                data = JSON.stringify(options.data);
+            }
+        }
+        if(!options.raw) {
+            request.responseType = 'json';
+        }
 
-    Github.User = function() {
-      this.repos = function(cb) {
-        _request("GET", "/user/repos?type=all&per_page=1000&sort=updated", null, function(err, res) {
-          cb(err, res);
-        });
-      };
+        // Set up the state change handler
+        request.onreadystatechange = function() {
+            if(this.readyState == XMLHttpRequest.DONE) {
+                if(this.status - this.status%100 == 200) { // if 2xx
+                    var cb = options.callback;
+                    if(this.responseType == 'text' || this.responseType == "") {
+                        cb(null, this.responseText,this);
+                    } else if(this.responseType == 'json') {
+                        cb(null, this.response,this);
+                    } else {
+                        console.error('unexpected response', this.responseType);
+                        cb(null,null,this);
+                    }
+                    return;
+                }
+                // Something went wrong
+                options.callback("XMLHttpRequest error code: " + this.status);
+            }
+        };
+        // Make the request
+        request.open(type,options.url,true);
+        if(headers) {
+            for(var header in headers) {
+                if(headers.hasOwnProperty(header)) {
+                    request.setRequestHeader(header, headers[header])
+                }
+            }
+        }
 
-      // List user organizations
-      // -------
-
-      this.orgs = function(cb) {
-        _request("GET", "/user/orgs", null, function(err, res) {
-          cb(err, res);
-        });
-      };
-
-      // List authenticated user's gists
-      // -------
-
-      this.gists = function(cb) {
-        _request("GET", "/gists", null, function(err, res) {
-          cb(err,res);
-        });
-      };
-
-      // Show user information
-      // -------
-
-      this.show = function(username, cb) {
-        var command = username ? "/users/"+username : "/user";
-
-        _request("GET", command, null, function(err, res) {
-          cb(err, res);
-        });
-      };
-
-      // List user repositories
-      // -------
-
-      this.userRepos = function(username, cb) {
-        _request("GET", "/users/"+username+"/repos?type=all&per_page=1000&sort=updated", null, function(err, res) {
-          cb(err, res);
-        });
-      };
-
-      // List a user's gists
-      // -------
-
-      this.userGists = function(username, cb) {
-        _request("GET", "/users/"+username+"/gists", null, function(err, res) {
-          cb(err,res);
-        });
-      };
-
-      // List organization repositories
-      // -------
-
-      this.orgRepos = function(orgname, cb) {
-        _request("GET", "/orgs/"+orgname+"/repos?type=all&per_page=1000&sort=updated&direction=desc", null, function(err, res) {
-          cb(err, res);
-        });
-      };
-
-      // Follow user
-      // -------
-
-      this.follow = function(username, cb) {
-        _request("PUT", "/user/following/"+username, null, function(err, res) {
-          cb(err, res);
-        });
-      };
-
-      // Unfollow user
-      // -------
-
-      this.unfollow = function(username, cb) {
-        _request("DELETE", "/user/following/"+username, null, function(err, res) {
-          cb(err, res);
-        });
-      };
+        request.send(data);
+        return request;
     };
 
 
-    // Repository API
-    // =======
+    /**
+     * @param {{username:string,password:string,auth:string}|{token:string,auth:string}} opts
+     */
+    function authHeaders(opts) {
+        var result = {
+            'Accept': 'application/vnd.github.raw+json',
+            'Content-Type': 'application/json;charset=UTF-8'
+        };
+        if (opts.token) {
+            result['Authorization'] = 'token ' + opts.token;
+        } else if(opts.username && opts.password) {
+            result['Authorization'] = 'Basic ' + Base64.encode(opts.username + ':' + opts.password);
+        }
+        return result;
+    }
+    function extend(base, sup) {
+        for(var prop in sup) {
+            if(sup.hasOwnProperty(prop)) {
+                if(sup[prop] === null) {
+                    if(typeof base[prop] != 'undefined') {
+                        delete base[prop];
+                    }
+                } else if(typeof sup[prop] != 'object') {
+                    base[prop] = sup[prop];
+                } else {
+                    if(Object.prototype.toString.call(sup[prop]) === '[object Array]') {
+                        base[prop] = sup[prop];
+                    } else {
+                        if (typeof base[prop] == 'undefined') {
+                            base[prop] = {};
+                        }
+                        extend(base[prop], sup[prop]);
+                    }
+                }
+            }
+        }
+        return base;
+    }
+    function getGitHubURL(path) {
+        var url = path.indexOf('//') >= 0 ? path : API_URL + path;
+        return url + (/\?/.test(url) ? "&" : "?") + (new Date()).getTime();
+    }
 
-    Github.Repository = function(options) {
-      var repo = options.name;
-      var user = options.user;
-      
-      var that = this;
-      var repoPath = "/repos/" + user + "/" + repo;
+    /**
+     * @param {{username:string,password:string,auth:string}|{token:string,auth:string}} opts
+     * @constructor
+     */
+    function Github(opts){
+        this.authHeaders = authHeaders(opts);
+    }
 
-      var currentTree = {
-        "branch": null,
-        "sha": null
-      };
 
-      // Uses the cache if branch has not been changed
-      // -------
+    Github.prototype._request = function(method,url,data,cb,opts) {
+//        console.log('>>_request:',method,url,data,opts,this.authHeaders,this);
+        var ropts = extend(extend({
+            type: method,
+            url: getGitHubURL(url)
+        }, {
+            headers: this.authHeaders,
+            callback: cb,
+            data: data
+        }), opts);
 
-      function updateTree(branch, cb) {
-        if (branch === currentTree.branch && currentTree.sha) return cb(null, currentTree.sha);
-        that.getRef("heads/"+branch, function(err, sha) {
-          currentTree.branch = branch;
-          currentTree.sha = sha;
-          cb(err, sha);
+        _tw_request(ropts);
+    };
+    Github.prototype.getRepo = function(user,repo){
+        return new Repo({user:user, name:repo},this);
+    };
+
+    /**
+     * @param {{user:string,name:string}} opts
+     * @param {Github} github
+     * @constructor
+     */
+    function Repo(opts,github) {
+        this._github = github;
+        this.user = opts.user;
+        this.repo = opts.name;
+        this.repoPath = "/repos/" + this.user + "/" + this.repo;
+
+        this.currentTree = {
+            "branch": null,
+            "sha": null
+        };
+    }
+    Repo.prototype._request = function(method,path,data,cb,opts){
+        return this._github._request(method,this.repoPath + path, data == null? null : data, cb, opts);
+    };
+
+    Repo.prototype._updateTree = function(branch, cb) {
+        if (branch === this.currentTree.branch && this.currentTree.sha) return cb(null, this.currentTree.sha);
+        var self = this;
+        this.getRef("heads/"+branch, function(err, sha) {
+            self.currentTree.branch = branch;
+            self.currentTree.sha = sha;
+            cb(err, sha);
         });
-      }
+    };
 
-      // Get a particular reference
-      // -------
-
-      this.getRef = function(ref, cb) {
-        _request("GET", repoPath + "/git/refs/" + ref, null, function(err, res) {
-          if (err) return cb(err);
-          cb(null, res.object.sha);
+    Repo.prototype.getRef = function(ref, cb) {
+        this._request('GET', "/git/refs/" + ref, null, function(err,res){
+            if(err) return cb(err);
+            cb(null, res.object.sha);
         });
-      };
-
-      // Create a new reference
-      // --------
-      //
-      // {
-      //   "ref": "refs/heads/my-new-branch-name",
-      //   "sha": "827efc6d56897b048c772eb4087f854f46256132"
-      // }
-
-      this.createRef = function(options, cb) {
-        _request("POST", repoPath + "/git/refs", options, cb);
-      };
-
-      // Delete a reference
-      // --------
-      // 
-      // repo.deleteRef('heads/gh-pages')
-      // repo.deleteRef('tags/v1.0')
-
-      this.deleteRef = function(ref, cb) {
-        _request("DELETE", repoPath + "/git/refs/"+ref, options, cb);
-      };
-
-      // List all branches of a repository
-      // -------
-
-      this.listBranches = function(cb) {
-        _request("GET", repoPath + "/git/refs/heads", null, function(err, heads) {
-          if (err) return cb(err);
-          cb(null, _.map(heads, function(head) { return _.last(head.ref.split('/')); }));
+    };
+    Repo.prototype.listBranches = function(cb) {
+        this._request("GET", "/git/refs/heads", null, function(err, heads) {
+            if (err) return cb(err);
+            cb(null, heads.map(function(head) {
+                var parts = head.ref.split('/');
+                return parts[parts.length - 1];
+            }));
         });
-      };
+    };
+    Repo.prototype.getBlob = function(sha, cb) {
+        this._request("GET", "/git/blobs/" + sha, null, cb, {raw: true});
+    };
 
-      // Retrieve the contents of a blob
-      // -------
-
-      this.getBlob = function(sha, cb) {
-        _request("GET", repoPath + "/git/blobs/" + sha, null, cb, 'raw');
-      };
-
-      // For a given file path, get the corresponding sha (blob for files, tree for dirs)
-      // -------
-
-      this.getSha = function(branch, path, cb) {
+    Repo.prototype.getSha = function(branch, path, cb) {
         // Just use head if path is empty
-        if (path === "") return that.getRef("heads/"+branch, cb);
-        that.getTree(branch+"?recursive=true", function(err, tree) {
-          var file = _.select(tree, function(file) {
+        if (!path || path === "") return this.getRef("heads/"+branch, cb);
+        this.getTree(branch+"?recursive=true", function(err, tree) {
+          if (err) return cb(err);
+          var file = tree.filter(function(file) {
             return file.path === path;
           })[0];
           cb(null, file ? file.sha : null);
         });
-      };
-
-      // Retrieve the tree a commit points to
-      // -------
-
-      this.getTree = function(tree, cb) {
-        _request("GET", repoPath + "/git/trees/"+tree, null, function(err, res) {
+    };
+/*
+    Repo.prototype.getSha = function(branch, path, cb) {
+        if (!path || path === "") return this.getRef("heads/"+branch, cb);
+        this._request("GET", "/contents/"+path, {ref: branch}, function(err, pathContent) {
+            if (err) return cb(err);
+            cb(null, pathContent.sha);
+        });
+    };
+*/
+    Repo.prototype.getTree = function(tree, cb) {
+        this._request("GET", "/git/trees/"+tree, null, function(err, res) {
           if (err) return cb(err);
           cb(null, res.tree);
         });
-      };
-
-      // Post a new blob object, getting a blob SHA back
-      // -------
-
-      this.postBlob = function(content, cb) {
+    };
+    Repo.prototype.postBlob = function(content, cb) {
         if (typeof(content) === "string") {
-          content = {
-            "content": content,
-            "encoding": "utf-8"
-          };
+            content = {
+                "content": content,
+                "encoding": "utf-8"
+            };
+        } else {
+            content = {
+                "content": Base64.encode(content),
+                "encoding": "base64"
+            };
         }
 
-        _request("POST", repoPath + "/git/blobs", content, function(err, res) {
-          if (err) return cb(err);
-          cb(null, res.sha);
-        });
-      };
-
-      // Update an existing tree adding a new blob object getting a tree SHA back
-      // -------
-
-      this.updateTree = function(baseTree, path, blob, cb) {
-        var data = {
-          "base_tree": baseTree,
-          "tree": [
-            {
-              "path": path,
-              "mode": "100644",
-              "type": "blob",
-              "sha": blob
-            }
-          ]
-        };
-        _request("POST", repoPath + "/git/trees", data, function(err, res) {
-          if (err) return cb(err);
-          cb(null, res.sha);
-        });
-      };
-
-      // Post a new tree object having a file path pointer replaced
-      // with a new blob SHA getting a tree SHA back
-      // -------
-
-      this.postTree = function(tree, cb) {
-        _request("POST", repoPath + "/git/trees", { "tree": tree }, function(err, res) {
-          if (err) return cb(err);
-          cb(null, res.sha);
-        });
-      };
-
-      // Create a new commit object with the current commit SHA as the parent
-      // and the new tree SHA, getting a commit SHA back
-      // -------
-
-      this.commit = function(parent, tree, message, cb) {
-        var data = {
-          "message": message,
-          "author": {
-            "name": options.username
-          },
-          "parents": [
-            parent
-          ],
-          "tree": tree
-        };
-
-        _request("POST", repoPath + "/git/commits", data, function(err, res) {
-          currentTree.sha = res.sha; // update latest commit
-          if (err) return cb(err);
-          cb(null, res.sha);
-        });
-      };
-
-      // Update the reference of your head to point to the new commit SHA
-      // -------
-
-      this.updateHead = function(head, commit, cb) {
-        _request("PATCH", repoPath + "/git/refs/heads/" + head, { "sha": commit }, function(err, res) {
-          cb(err);
-        });
-      };
-
-      // Show repository information
-      // -------
-
-      this.show = function(cb) {
-        _request("GET", repoPath, null, cb);
-      };
-
-      // Get contents
-      // --------
-
-      this.contents = function(branch, path, cb) {
-        _request("GET", repoPath + "/contents?ref=" + branch, { path: path }, cb);
-      };
-
-      // Fork repository
-      // -------
-
-      this.fork = function(cb) {
-        _request("POST", repoPath + "/forks", null, cb);
-      };
-
-      // Create pull request
-      // --------
-
-      this.createPullRequest = function(options, cb) {
-        _request("POST", repoPath + "/pulls", options, cb);
-      };
-
-      // Read file at given path
-      // -------
-
-      this.read = function(branch, path, cb) {
-        that.getSha(branch, path, function(err, sha) {
-          if (!sha) return cb("not found", null);
-          that.getBlob(sha, function(err, content) {
-            cb(err, content, sha);
-          });
-        });
-      };
-
-      // Remove a file from the tree
-      // -------
-
-      this.remove = function(branch, path, cb) {
-        updateTree(branch, function(err, latestCommit) {
-          that.getTree(latestCommit+"?recursive=true", function(err, tree) {
-            // Update Tree
-            var newTree = _.reject(tree, function(ref) { return ref.path === path; });
-            _.each(newTree, function(ref) {
-              if (ref.type === "tree") delete ref.sha;
-            });
-
-            that.postTree(newTree, function(err, rootTree) {
-              that.commit(latestCommit, rootTree, 'Deleted '+path , function(err, commit) {
-                that.updateHead(branch, commit, function(err) {
-                  cb(err);
-                });
-              });
-            });
-          });
-        });
-      };
-
-      // Move a file to a new location
-      // -------
-
-      this.move = function(branch, path, newPath, cb) {
-        updateTree(branch, function(err, latestCommit) {
-          that.getTree(latestCommit+"?recursive=true", function(err, tree) {
-            // Update Tree
-            _.each(tree, function(ref) {
-              if (ref.path === path) ref.path = newPath;
-              if (ref.type === "tree") delete ref.sha;
-            });
-
-            that.postTree(tree, function(err, rootTree) {
-              that.commit(latestCommit, rootTree, 'Deleted '+path , function(err, commit) {
-                that.updateHead(branch, commit, function(err) {
-                  cb(err);
-                });
-              });
-            });
-          });
-        });
-      };
-
-      // Write file contents to a given branch and path
-      // -------
-
-      this.write = function(branch, path, content, message, cb) {
-        updateTree(branch, function(err, latestCommit) {
-          if (err) return cb(err);
-          that.postBlob(content, function(err, blob) {
+        this._request("POST", "/git/blobs", content, function(err, res) {
             if (err) return cb(err);
-            that.updateTree(latestCommit, path, blob, function(err, tree) {
-              if (err) return cb(err);
-              that.commit(latestCommit, tree, message, function(err, commit) {
-                if (err) return cb(err);
-                that.updateHead(branch, commit, cb);
-              });
+            cb(null, res.sha);
+        });
+    };
+    Repo.prototype.updateTree = function(baseTree, path, blob, cb) {
+        var data = {
+            "base_tree": baseTree,
+            "tree": [
+                {
+                    "path": path,
+                    "mode": "100644",
+                    "type": "blob",
+                    "sha": blob
+                }
+            ]
+        };
+        this._request("POST", "/git/trees", data, function(err, res) {
+            if (err) return cb(err);
+            cb(null, res.sha);
+        });
+    };
+
+    Repo.prototype.commit = function(parent, tree, message, cb) {
+        var data = {
+            "message": message,
+            "author": {
+                "name": this.user
+            },
+            "parents": [
+                parent
+            ],
+            "tree": tree
+        };
+        var self = this;
+        this._request("POST", "/git/commits", data, function(err, res) {
+            self.currentTree.sha = res.sha; // update latest commit
+            if (err) return cb(err);
+            cb(null, res.sha);
+        });
+    };
+
+    Repo.prototype.updateHead = function(head, commit, cb) {
+        this._request('PATCH', '/git/refs/heads/' + head, { "sha": commit }, function(err) {
+            cb(err);
+        });
+    };
+    Repo.prototype.show = function(cb) {
+        this._request('GET', '', {}, cb);
+    };
+    Repo.prototype.contents = function(branch, path, cb) {
+        return this._request("GET", "/contents?ref=" + branch + (path ? "&path=" + path : ""), null, cb);
+    };
+
+/*
+    Repo.prototype.read = function(branch, path, cb) {
+        this._request("GET", "/contents/"+path, {ref: branch}, function(err, obj) {
+            if (err && err.error === 404) return cb("not found", null, null);
+
+            if (err) return cb(err);
+            var sha = obj.sha;
+            var content = null;
+            if(obj.encoding == 'utf-8') {
+                content = obj.content;
+            } else  if(obj.encoding == 'base64') {
+                content = Base64.decode(obj.content);
+            } else {
+                throw new Error('unsupported encoding:['+obj.content+']use readBlob');
+            }
+
+            cb(null, content, sha);
+        });
+    };
+*/
+
+/*
+    Repo.prototype.write = function(branch, path, content, message, cb) {
+        var that = this;
+        this.getSha(branch, path, function(err, sha) {
+            console.log('getSha:',branch,path,sha);
+            if (err && err.error!=404) return cb(err);
+            that._request("PUT", "/contents/" + path, {
+                message: message,
+                content: Base64.encode(content),
+                branch: branch,
+                sha: sha
+            }, cb);
+        });
+    };
+*/
+    Repo.prototype.read = function(branch, path, cb) {
+        var that = this;
+        this.readBlob(branch, path, function(err, data, sha, xhr){
+            if(err) {return cb(err);}
+            console.log('readBlob:',err,data,sha,xhr);
+            if(data && typeof data == 'string') {
+                cb(null, data);
+            } else if(data && typeof data == 'object') {
+                if(data.encoding == 'utf-8') {
+                    cb(null, data.content);
+                } else if (data.encoding == 'base64'){
+                    cb(null, Base64.decode(data.content));
+                } else {
+                    cb(null, data);
+                }
+            } else {
+                cb('unhadled read xhr.responseType:'+xhr.responseType, xhr);
+            }
+        });
+    };
+
+    Repo.prototype.readBlob = function(branch, path, cb) {
+        var self = this;
+        self.getSha(branch, path, function(err, sha) {
+            if (!sha) return cb("not found", null);
+            self.getBlob(sha, function(err, content, xhr) {
+                cb(err, content, sha, xhr);
             });
-          });
         });
-      };
     };
 
-    // Gists API
-    // =======
-
-    Github.Gist = function(options) {
-      var id = options.id;
-      var gistPath = "/gists/"+id;
-
-      // Read the gist
-      // --------
-
-      this.read = function(cb) {
-        _request("GET", gistPath, null, function(err, gist) {
-          cb(err, gist);
+    Repo.prototype.write = function(branch,path,content,message,cb){
+        this.writeBlob(branch,path,content,message,cb);
+    };
+    Repo.prototype.writeBlob = function(branch, path, content, message, cb) {
+        var that = this;
+        this._updateTree(branch, function(err, latestCommit) {
+            if (err) return cb(err);
+            that.postBlob(content, function(err, blob) {
+                if (err) return cb(err);
+                that.updateTree(latestCommit, path, blob, function(err, tree) {
+                    if (err) return cb(err);
+                    that.commit(latestCommit, tree, message, function(err, commit) {
+                        if (err) return cb(err);
+                        that.updateHead(branch, commit, cb);
+                    });
+                });
+            });
         });
-      };
-
-      // Create the gist
-      // --------
-      // {
-      //  "description": "the description for this gist",
-      //    "public": true,
-      //    "files": {
-      //      "file1.txt": {
-      //        "content": "String file contents"
-      //      }
-      //    }
-      // }
-      
-      this.create = function(options, cb){
-        _request("POST","/gists", options, cb);
-      };
-
-      // Delete the gist
-      // --------
-
-      this.delete = function(cb) {
-        _request("DELETE", gistPath, null, function(err,res) {
-          cb(err,res);
-        });
-      };
-
-      // Fork a gist
-      // --------
-
-      this.fork = function(cb) {
-        _request("POST", gistPath+"/fork", null, function(err,res) {
-          cb(err,res);
-        });
-      };
-
-      // Update a gist with the new stuff
-      // --------
-
-      this.update = function(options, cb) {
-        _request("PATCH", gistPath, options, function(err,res) {
-          cb(err,res);
-        });
-      };
     };
 
-    // Top Level API
-    // -------
-
-    this.getRepo = function(user, repo) {
-      return new Github.Repository({user: user, name: repo});
-    };
-
-    this.getUser = function() {
-      return new Github.User();
-    };
-
-    this.getGist = function(id) {
-      return new Github.Gist({id: id});
-    };
-  };
-
-
-  if (typeof exports !== 'undefined') {
-    // Github = exports;
-    module.exports = Github;
-  } else {
-    window.Github = Github;
-  }
+    if (typeof exports !== 'undefined') {
+        module.exports = Github;
+    } else {
+        window.Github = Github;
+    }
 }).call(this);

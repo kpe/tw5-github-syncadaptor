@@ -60,7 +60,7 @@ A sync adaptor module for GitHub.
 			githubAToken = localStorage['githubsync-access-token'];
 		}
 		if(!githubAToken) {
-			throw new Error('No GitHub Access Token available.');
+            callback(new Error('No GitHub Access Token available.'));
 		}
 
 		this.logger.log('Testing GitHub Connection');
@@ -71,10 +71,9 @@ A sync adaptor module for GitHub.
 		var repo = github.getRepo(this.repo.username, this.repo.repo);
 		repo.show(function(err, repo){
 			if(err) {
-				console.error('error accessing repo',err);
 				return callback(err);
 			}
-			console.log('repo',repo);
+			self.logger.log('repo',repo);
 			var isLoggedIn = true;
 			if(callback) {
 				callback(null, isLoggedIn, self.repo.username);
@@ -83,7 +82,20 @@ A sync adaptor module for GitHub.
 	};
 
 GitHubAdaptor.prototype.login = function (username, password, callback) {
-	console.error('About to log in with GitHub');
+    var githubAToken = null;
+    if(localStorage){
+        githubAToken = localStorage['githubsync-access-token'];
+    }
+    if(!githubAToken) {
+        callback(new Error('No GitHub Access Token available.'));
+    }
+    var Github = require('$:/plugins/kpe/githubsync/lib/github.js');
+    var github = new Github({auth:'oauth',token:githubAToken});
+    this.logger.log('About to log in with GitHub');
+    var repo = github.getRepo(this.repo.username, this.repo.repo);
+    repo.listBranches(function(err,data){
+        callback(err);
+    });
 };
 GitHubAdaptor.prototype.logout = function (callback) {
 
